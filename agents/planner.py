@@ -1,9 +1,10 @@
 """
-Planner Agent - Analyzes requirements and creates development plan
+Planner Agent - Analyzes requirements and creates a concise development plan
 """
 
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
+from typing import List
 import sys
 import os
 
@@ -15,112 +16,129 @@ from config.llm import get_gemini_llm
 class PlannerOutput(BaseModel):
     """Output schema for the Planner agent."""
     project_overview: str = Field(description="Brief overview of what needs to be built")
-    key_features: list[str] = Field(description="List of key features to implement")
-    approach: str = Field(description="High-level approach to implementation")
-    considerations: str = Field(description="Important considerations or constraints")
+    key_features: List[str] = Field(description="Essential features only")
+    approach: str = Field(description="High-level implementation approach")
+    considerations: str = Field(description="Critical constraints or notes")
 
 
 class PlannerAgent:
     """
-    Planner Agent - Analyzes requirements and creates a development plan.
+    Planner Agent - Produces a minimal, high-signal development plan.
+    Optimized for speed, clarity, and downstream code generation.
     """
-    
+
     def __init__(self):
-        self.llm = get_gemini_llm(temperature=0.7)
-        
+        # Lower temperature = more deterministic, less verbose
+        self.llm = get_gemini_llm(temperature=0.4)
+
         self.prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an expert software architect and planner.
-Your role is to analyze user requirements and create a clear, concise development plan.
+            (
+                "system",
+                """You are a senior software architect.
 
-Focus on:
-- Understanding the core problem
-- Identifying key features needed
-- Suggesting a practical approach
-- Noting important considerations
+Rules:
+- Be concise
+- Focus only on what is REQUIRED to build the system
+- Avoid fluff, repetition, or optional ideas
+- Prefer practical, implementable decisions
+- Output should guide code generation directly
+"""
+            ),
+            (
+                "user",
+                """Create a SHORT, STRUCTURED development plan.
 
-Keep the plan minimal and focused on what's truly necessary."""),
-            ("user", """Create a development plan for the following request:
+PROJECT DESCRIPTION:
+{description}
 
-Description: {description}
-Programming Language: {language}
+LANGUAGE:
+{language}
 
-Provide a structured plan that will guide the design and implementation.""")
+Return content in this format ONLY:
+
+Overview:
+<1–2 sentences>
+
+Key Features:
+- <feature 1>
+- <feature 2>
+- <feature 3>
+
+Approach:
+<short paragraph>
+
+Considerations:
+<critical constraints only>
+"""
+            )
         ])
-    
+
     def plan(self, description: str, language: str) -> PlannerOutput:
         """
-        Create a development plan based on user requirements.
-        
-        Args:
-            description: What the user wants to build
-            language: The programming language to use
-            
-        Returns:
-            PlannerOutput with the development plan
+        Create a concise development plan based on user requirements.
         """
         chain = self.prompt | self.llm
-        
+
         response = chain.invoke({
             "description": description,
             "language": language
         })
-        
-        # Parse the response into structured output
+
         content = response.content
         if isinstance(content, list):
             content = "\n".join(
-               item.get("text", str(item)) if isinstance(item, dict) else str(item)
-               for item in content
+                item.get("text", str(item)) if isinstance(item, dict) else str(item)
+                for item in content
             )
 
-        
-        # Simple parsing
-        lines = content.split('\n')
-        
+        lines = [line.strip() for line in content.split("\n") if line.strip()]
+
         overview = ""
-        features = []
+        features: List[str] = []
         approach = ""
         considerations = ""
-        
-        current_section = None
-        
+
+        section = None
+
         for line in lines:
-            line = line.strip()
-            if not line:
+            lower = line.lower()
+
+            if lower.startswith("overview"):
+                section = "overview"
                 continue
-                
-            if "overview" in line.lower() or "summary" in line.lower():
-                current_section = "overview"
-            elif "feature" in line.lower() or "requirement" in line.lower():
-                current_section = "features"
-            elif "approach" in line.lower() or "strategy" in line.lower():
-                current_section = "approach"
-            elif "consideration" in line.lower() or "note" in line.lower():
-                current_section = "considerations"
-            elif line.startswith('-') or line.startswith('*') or line.startswith('•'):
-                if current_section == "features":
-                    features.append(line.lstrip('-*• '))
+            if lower.startswith("key features"):
+                section = "features"
+                continue
+            if lower.startswith("approach"):
+                section = "approach"
+                continue
+            if lower.startswith("considerations"):
+                section = "considerations"
+                continue
+
+            if line.startswith(("-", "*", "•")) and section == "features":
+                features.append(line.lstrip("-*• ").strip())
             else:
-                if current_section == "overview":
+                if section == "overview":
                     overview += line + " "
-                elif current_section == "approach":
+                elif section == "approach":
                     approach += line + " "
-                elif current_section == "considerations":
+                elif section == "considerations":
                     considerations += line + " "
-        
-        # Fallback if parsing doesn't work well
+
+        # Hard fallbacks (never fail downstream)
         if not overview:
-            overview = content[:200] + "..."
+            overview = f"Build the requested system using {language}."
         if not features:
-            features = ["Core functionality as described", "Error handling", "User-friendly interface"]
+            features = ["Core functionality", "Input handling", "Output generation"]
         if not approach:
-            approach = f"Implement using {language} with clean, modular code structure"
+            approach = f"Implement using clean, modular {language} code."
         if not considerations:
-            considerations = "Focus on code quality, readability, and maintainability"
-        
+            considerations = "Ensure correctness, performance, and maintainability."
+
         return PlannerOutput(
             project_overview=overview.strip(),
-            key_features=features,
+            key_features=features[:8],  # hard cap to avoid token bloat
             approach=approach.strip(),
             considerations=considerations.strip()
         )

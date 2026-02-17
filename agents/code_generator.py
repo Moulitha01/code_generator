@@ -1,5 +1,5 @@
 """
-Code Generator Agent - Generates actual code from technical design
+Code Generator Agent - Generates full runnable code (supports complex programs)
 """
 
 from langchain_core.prompts import ChatPromptTemplate
@@ -15,7 +15,6 @@ from agents.planner import PlannerOutput
 
 
 class CodeGeneratorOutput(BaseModel):
-    """Output schema for the Code Generator agent."""
     code: str = Field(description="The generated source code")
     filename: str = Field(description="Suggested filename for the code")
     explanation: str = Field(description="Brief explanation of the code")
@@ -23,26 +22,48 @@ class CodeGeneratorOutput(BaseModel):
 
 class CodeGeneratorAgent:
     """
-    Code Generator Agent - Generates actual code from the technical design.
+    Code Generator Agent - Generates full, production-style code.
+    Designed to handle complex programs (games, apps, long scripts).
     """
-    
+
     def __init__(self):
-        self.llm = get_gemini_llm(temperature=0.3)
-        
+        self.llm = get_gemini_llm(
+            temperature=0.3,
+            
+        )
+
         self.prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an expert programmer.
-Your role is to generate clean, working code based on technical designs.
+            (
+                "system",
+                "You are an expert and senior software engineer. "
+                "You MUST generate full-scale, production-style implementations. "
+                "NEVER simplify. NEVER generate toy or demo examples. "
+                "If the task is a game or application, include the complete game loop, "
+                 "No explanations. No markdown. No comments outside code.\n"
+                "Never truncate output. Never summarize.\n"
+                "If the program is complex, generate the FULL implementation."
+                "state management, input handling, rendering, and cleanup. "
+                "Assume the user expects a fully working, end-to-end program."
+            ),
+            (
+                "user",
+                """Generate FULL, COMPLETE, RUNNABLE code.
 
-Focus on:
-- Writing clean, readable code
-- Following best practices for the language
-- Including comments for clarity
-- Ensuring the code is complete and functional
+STRICT RULES:
+- Return ONLY code
+-FULLY RUNNABLE
+- NO explanations
+- NO markdown
+- NO summaries
+- SINGLE FILE
+- Do NOT omit any part
+- If code is long, DO NOT stop early; continue until complete
 
-Generate production-quality code that works."""),
-            ("user", """Generate complete, working code based on this design:
+DESCRIPTION:
+{description}
 
-DESCRIPTION: {description}
+DEVELOPMENT PLAN:
+{plan}
 
 ARCHITECTURE:
 {architecture}
@@ -57,71 +78,62 @@ FUNCTION SIGNATURES:
 {function_signatures}
 
 LANGUAGE: {language}
-
-Generate the complete code with appropriate comments and structure.
-Make it clean, minimal, and functional.""")
+"""
+            )
         ])
-    
-    def generate(self, description: str, plan: PlannerOutput, 
-                design: DesignerOutput, language: str) -> CodeGeneratorOutput:
-        """
-        Generate code from the technical design.
-        
-        Args:
-            description: Original user description
-            plan: The development plan
-            design: The technical design
-            language: The programming language
-            
-        Returns:
-            CodeGeneratorOutput with the generated code
-        """
-        components_text = "\n".join([f"- {c}" for c in design.components])
-        
+
+    def generate(
+        self,
+        description: str,
+        plan: PlannerOutput,
+        design: DesignerOutput,
+        language: str
+    ) -> CodeGeneratorOutput:
+
+        components_text = "\n".join(f"- {c}" for c in design.components)
+
+        plan_text = (
+            f"Overview: {plan.project_overview}\n"
+            f"Approach: {plan.approach}\n"
+            f"Considerations: {plan.considerations}"
+        )
+
         chain = self.prompt | self.llm
-        
+
         response = chain.invoke({
             "description": description,
+            "plan": plan_text,
             "architecture": design.architecture,
             "components": components_text,
             "data_structures": design.data_structures,
             "function_signatures": design.function_signatures,
             "language": language
         })
-        
+
         content = response.content
         if isinstance(content, list):
-          content = "\n".join(
-             item.get("text", str(item)) if isinstance(item, dict) else str(item)
-             for item in content
-          )
+            content = "\n".join(
+                item.get("text", str(item)) if isinstance(item, dict) else str(item)
+                for item in content
+            )
 
-        
-        # Extract code blocks
-        code = ""
-        explanation = ""
-        
+        # Robust code extraction (handles accidental markdown)
         if "```" in content:
-            # Extract code from markdown code blocks
             parts = content.split("```")
+            code_blocks = []
+
             for i, part in enumerate(parts):
-                if i % 2 == 1:  # Odd indices are code blocks
-                    # Remove language identifier if present
-                    lines = part.strip().split('\n')
-                    if lines[0].strip().lower() in ['python', 'javascript', 'java', 'cpp', 'c++', 'c', 'go', 'rust', language.lower()]:
-                        code = '\n'.join(lines[1:])
+                if i % 2 == 1:
+                    lines = part.strip().split("\n")
+                    if lines and lines[0].strip().lower() == language.lower():
+                        code_blocks.append("\n".join(lines[1:]))
                     else:
-                        code = part.strip()
-                    break
-            
-            # Get explanation from before the code block
-            if parts[0].strip():
-                explanation = parts[0].strip()
+                        code_blocks.append(part.strip())
+
+            code = "\n\n".join(code_blocks)
         else:
             code = content
-            explanation = f"Generated {language} code as per requirements"
-        
-        # Determine filename based on language
+
         extension_map = {
             "python": ".py",
             "javascript": ".js",
@@ -137,15 +149,12 @@ Make it clean, minimal, and functional.""")
             "swift": ".swift",
             "kotlin": ".kt",
         }
-        
+
         extension = extension_map.get(language.lower(), ".txt")
         filename = f"generated_code{extension}"
-        
-        if not explanation:
-            explanation = f"Complete {language} implementation based on the requirements"
-        
+
         return CodeGeneratorOutput(
             code=code.strip(),
             filename=filename,
-            explanation=explanation[:500]  # Limit explanation length
+            explanation=" runnable code"
         )

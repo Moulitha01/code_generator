@@ -1,9 +1,10 @@
 """
-Designer Agent - Creates detailed technical design from the plan
+Designer Agent - Produces a precise technical design ready for code generation
 """
 
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
+from typing import List
 import sys
 import os
 
@@ -15,32 +16,38 @@ from agents.planner import PlannerOutput
 
 class DesignerOutput(BaseModel):
     """Output schema for the Designer agent."""
-    architecture: str = Field(description="System architecture and structure")
-    components: list[str] = Field(description="List of main components/modules")
-    data_structures: str = Field(description="Key data structures or models")
-    function_signatures: str = Field(description="Main functions/methods to implement")
+    architecture: str = Field(description="Overall system architecture")
+    components: List[str] = Field(description="Concrete modules/classes/files")
+    data_structures: str = Field(description="Key data structures and models")
+    function_signatures: str = Field(description="Important functions or methods")
 
 
 class DesignerAgent:
     """
-    Designer Agent - Creates detailed technical design from the plan.
+    Designer Agent - Converts a plan into a concrete, implementable design.
+    Optimized for complex programs (games, apps, systems).
     """
-    
+
     def __init__(self):
-        self.llm = get_gemini_llm(temperature=0.5)
-        
+        # Lower temperature = stable, implementation-focused output
+        self.llm = get_gemini_llm(temperature=0.4)
+
         self.prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an expert software designer.
-Your role is to create detailed technical designs from high-level plans.
+            (
+                "system",
+                """You are a senior software engineer.
 
-Focus on:
-- Clear architecture and component structure
-- Key data structures needed
-- Main function/method signatures
-- How components interact
-
-Keep the design minimal but complete."""),
-            ("user", """Based on this development plan, create a detailed technical design:
+Rules:
+- Design MUST be implementable directly in code
+- Prefer explicit modules, classes, and responsibilities
+- Avoid vague statements
+- Think like you are preparing for coding immediately
+- Assume the next agent will generate FULL WORKING CODE
+"""
+            ),
+            (
+                "user",
+                """Create a TECHNICAL DESIGN based on the plan below.
 
 PROJECT OVERVIEW:
 {overview}
@@ -51,87 +58,109 @@ KEY FEATURES:
 APPROACH:
 {approach}
 
-LANGUAGE: {language}
+LANGUAGE:
+{language}
 
-Provide a technical design that includes architecture, components, data structures, and function signatures.""")
+Return output in EXACTLY this format:
+
+Architecture:
+<clear description>
+
+Components:
+- <module/class 1>
+- <module/class 2>
+- <module/class 3>
+
+Data Structures:
+<key data models / structures>
+
+Function Signatures:
+<important functions or class methods>
+"""
+            )
         ])
-    
+
     def design(self, plan: PlannerOutput, language: str) -> DesignerOutput:
         """
-        Create a technical design from the development plan.
-        
-        Args:
-            plan: The development plan from PlannerAgent
-            language: The programming language to use
-            
-        Returns:
-            DesignerOutput with the technical design
+        Generate a concrete technical design from the planner output.
         """
-        features_text = "\n".join([f"- {f}" for f in plan.key_features])
-        
+        features_text = "\n".join(f"- {f}" for f in plan.key_features)
+
         chain = self.prompt | self.llm
-        
+
         response = chain.invoke({
             "overview": plan.project_overview,
             "features": features_text,
             "approach": plan.approach,
             "language": language
         })
-        
+
         content = response.content
         if isinstance(content, list):
-             content = "\n".join(
-               item.get("text", str(item)) if isinstance(item, dict) else str(item)
-               for item in content
+            content = "\n".join(
+                item.get("text", str(item)) if isinstance(item, dict) else str(item)
+                for item in content
             )
-        
-        # Simple parsing
-        lines = content.split('\n')
-        
+
+        lines = [line.strip() for line in content.split("\n") if line.strip()]
+
         architecture = ""
-        components = []
+        components: List[str] = []
         data_structures = ""
         function_signatures = ""
-        
-        current_section = None
-        
+
+        section = None
+
         for line in lines:
-            line = line.strip()
-            if not line:
+            lower = line.lower()
+
+            if lower.startswith("architecture"):
+                section = "architecture"
                 continue
-                
-            if "architecture" in line.lower() or "structure" in line.lower():
-                current_section = "architecture"
-            elif "component" in line.lower() or "module" in line.lower():
-                current_section = "components"
-            elif "data" in line.lower() or "structure" in line.lower() or "model" in line.lower():
-                current_section = "data"
-            elif "function" in line.lower() or "method" in line.lower() or "signature" in line.lower():
-                current_section = "functions"
-            elif line.startswith('-') or line.startswith('*') or line.startswith('•'):
-                if current_section == "components":
-                    components.append(line.lstrip('-*• '))
+            if lower.startswith("components"):
+                section = "components"
+                continue
+            if lower.startswith("data structures"):
+                section = "data"
+                continue
+            if lower.startswith("function signatures"):
+                section = "functions"
+                continue
+
+            if line.startswith(("-", "*", "•")) and section == "components":
+                components.append(line.lstrip("-*• ").strip())
             else:
-                if current_section == "architecture":
+                if section == "architecture":
                     architecture += line + " "
-                elif current_section == "data":
+                elif section == "data":
                     data_structures += line + " "
-                elif current_section == "functions":
+                elif section == "functions":
                     function_signatures += line + " "
-        
-        # Fallback values
+
+        # HARD FAIL-SAFES (critical for complex programs)
         if not architecture:
-            architecture = f"Modular {language} application with clear separation of concerns"
+            architecture = f"Modular {language} application with separated logic, state, and execution layers."
+
         if not components:
-            components = ["Main module", "Helper functions", "Data processing"]
+            components = [
+                "main entry point",
+                "core logic module",
+                "state/data manager",
+                "input handling",
+                "rendering/output module"
+            ]
+
         if not data_structures:
-            data_structures = "Standard data structures appropriate for the task"
+            data_structures = "Core state objects, configuration structures, and runtime data containers."
+
         if not function_signatures:
-            function_signatures = "Core functions as needed by the requirements"
-        
+            function_signatures = (
+                "initialize(), run_loop(), update_state(), handle_input(), render_output(), cleanup()"
+            )
+
         return DesignerOutput(
             architecture=architecture.strip(),
-            components=components,
+            components=components[:10],  # cap size to prevent token explosion
             data_structures=data_structures.strip(),
             function_signatures=function_signatures.strip()
         )

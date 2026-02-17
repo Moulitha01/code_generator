@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Code Generator</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<h1>Multi-Agent Code Generator</h1>
+
+<textarea id="description" placeholder="Describe what you want to build"></textarea>
+
+<br><br>
+
+<select id="language">
+    <option value="Python">Python</option>
+    <option value="JavaScript">JavaScript</option>
+    <option value="Java">Java</option>
+</select>
+
+<br><br>
+
+<button onclick="generateCode()">Generate Code</button>
+
+<hr>
+
+<h2>Planning</h2>
+<pre id="planning"></pre>
+
+<h2>Design</h2>
+<pre id="design"></pre>
+
+<h2>Code</h2>
+<pre id="code"></pre>
+
+<h2>Testing</h2>
+<pre id="testing"></pre>
+
+<script src="/static/script.js"></script>
+
+</body>
+</html>

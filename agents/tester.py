@@ -1,5 +1,6 @@
 """
-Tester Agent - Reviews and tests the generated code
+Tester Agent - Reviews and validates generated code
+Only CRITICAL failures block production readiness
 """
 
 from langchain_core.prompts import ChatPromptTemplate
@@ -7,6 +8,7 @@ from pydantic import BaseModel, Field
 from typing import List
 import sys
 import os
+import re
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -15,169 +17,153 @@ from agents.code_generator import CodeGeneratorOutput
 
 
 class TestResult(BaseModel):
-    """Individual test result."""
-    test_name: str = Field(description="Name of the test")
-    passed: bool = Field(description="Whether the test passed")
-    details: str = Field(description="Test details or failure reason")
+    test_name: str
+    passed: bool
+    details: str
 
 
 class TesterOutput(BaseModel):
-    """Output schema for the Tester agent."""
-    overall_quality: str = Field(description="Overall code quality assessment")
-    test_results: List[TestResult] = Field(description="List of test results")
-    issues_found: List[str] = Field(description="List of issues or concerns")
-    suggestions: List[str] = Field(description="Suggestions for improvement")
-    is_production_ready: bool = Field(description="Whether code is production ready")
+    overall_quality: str
+    test_results: List[TestResult]
+    issues_found: List[str]
+    suggestions: List[str]
+    is_production_ready: bool
 
 
 class TesterAgent:
     """
-    Tester Agent - Reviews and tests the generated code.
+    Tester Agent - Validates correctness and runtime safety.
     """
-    
+
     def __init__(self):
-        self.llm = get_gemini_llm(temperature=0.4)
-        
+        self.llm = get_gemini_llm(temperature=0.2)
+
         self.prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an expert code reviewer and tester.
-Your role is to analyze code for quality, correctness, and potential issues.
+            (
+                "system",
+                "You are a strict automated code validator.\n"
+                "ONLY identify CRITICAL problems:\n"
+                "- Syntax errors\n"
+                "- Guaranteed runtime crashes\n"
+                "- Infinite loops\n"
+                "- Missing entry points\n\n"
+                "DO NOT comment on style, formatting, or optimizations.\n"
+                "DO NOT fail code for improvements or best practices.\n"
+                "If no critical issue exists, say: NO_CRITICAL_ISSUES"
+            ),
+            (
+                "user",
+                """LANGUAGE: {language}
 
-Focus on:
-- Code correctness and logic
-- Error handling
-- Edge cases
-- Code quality and best practices
-- Security concerns
-- Performance considerations
-
-Provide honest, constructive feedback."""),
-            ("user", """Review and test this code:
-
-ORIGINAL REQUIREMENTS:
+REQUIREMENTS:
 {description}
 
-LANGUAGE: {language}
-
 CODE:
-```{language}
 {code}
-```
 
-Provide a comprehensive review including:
-1. Overall quality assessment
-2. Specific test results (syntax, logic, functionality)
-3. Issues found
-4. Suggestions for improvement
-5. Whether it's production-ready
-
-Be thorough but fair in your assessment.""")
+Return ONLY:
+- CRITICAL_ISSUES (if any)
+- OPTIONAL_SUGGESTIONS (if any)
+"""
+            )
         ])
-    
-    def test(self, description: str, code_output: CodeGeneratorOutput, 
-             language: str) -> TesterOutput:
-        """
-        Test and review the generated code.
-        
-        Args:
-            description: Original user description
-            code_output: The generated code
-            language: The programming language
-            
-        Returns:
-            TesterOutput with test results and feedback
-        """
+
+    def _basic_static_checks(self, code: str, language: str) -> List[str]:
+        """Fast deterministic checks without LLM."""
+        issues = []
+
+        if not code.strip():
+            issues.append("Empty source code")
+
+        if language.lower() == "python":
+            # Accept either a main() function or direct __main__ run
+            if "if __name__ == '__main__'" not in code and "if __name__ == \"__main__\"" not in code:
+                if "def main" not in code:
+                    issues.append("Missing Python entry point")
+
+        if language.lower() == "java":
+            if "public static void main" not in code:
+                issues.append("Missing Java main method")
+
+        # Simple infinite loop check
+        if re.search(r"while\s*\(\s*true\s*\)", code) and "break" not in code:
+            issues.append("Potential infinite loop")
+
+        return issues
+
+    def test(
+        self,
+        description: str,
+        code_output: CodeGeneratorOutput,
+        language: str
+    ) -> TesterOutput:
+
+        critical_issues = self._basic_static_checks(
+            code_output.code, language
+        )
+
+        llm_issues = []
+        suggestions = []
+
         chain = self.prompt | self.llm
-        
         response = chain.invoke({
             "description": description,
             "language": language,
             "code": code_output.code
         })
-        
+
         content = response.content
         if isinstance(content, list):
-           content = "\n".join(
-             item.get("text", str(item)) if isinstance(item, dict) else str(item)
-             for item in content
-           )
+            content = "\n".join(
+                item.get("text", str(item)) if isinstance(item, dict) else str(item)
+                for item in content
+            )
 
-        
-        # Parse the response
-        lines = content.split('\n')
-        
-        overall_quality = ""
-        test_results = []
-        issues_found = []
-        suggestions = []
-        is_production_ready = True
-        
-        current_section = None
-        
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-            
-            # Detect sections
-            if "quality" in line.lower() or "assessment" in line.lower():
-                current_section = "quality"
-            elif "test" in line.lower() and "result" in line.lower():
-                current_section = "tests"
-            elif "issue" in line.lower() or "problem" in line.lower() or "concern" in line.lower():
-                current_section = "issues"
-            elif "suggest" in line.lower() or "recommend" in line.lower() or "improve" in line.lower():
-                current_section = "suggestions"
-            elif "production" in line.lower() or "ready" in line.lower():
-                if "not" in line.lower() or "isn't" in line.lower() or "no" in line.lower():
-                    is_production_ready = False
-            
-            # Extract content based on section
-            if line.startswith('-') or line.startswith('*') or line.startswith('•'):
-                clean_line = line.lstrip('-*• ').strip()
-                if current_section == "issues":
-                    issues_found.append(clean_line)
-                    is_production_ready = False
-                elif current_section == "suggestions":
-                    suggestions.append(clean_line)
-            else:
-                if current_section == "quality" and not overall_quality:
-                    overall_quality += line + " "
-        
-        # Create test results
-        if not test_results:
-            test_results = [
-                TestResult(
-                    test_name="Syntax Check",
-                    passed=True if not any("syntax" in i.lower() for i in issues_found) else False,
-                    details="Code syntax appears valid"
-                ),
-                TestResult(
-                    test_name="Logic Review",
-                    passed=True if not any("logic" in i.lower() for i in issues_found) else False,
-                    details="Logic flow reviewed"
-                ),
-                TestResult(
-                    test_name="Best Practices",
-                    passed=len(issues_found) == 0,
-                    details="Code follows standard practices" if len(issues_found) == 0 else "Some improvements suggested"
-                )
-            ]
-        
-        # Fallback values
-        if not overall_quality:
-            overall_quality = "Code review completed. " + ("No major issues found." if len(issues_found) == 0 else f"{len(issues_found)} issues identified.")
-        
-        if not issues_found:
-            issues_found = ["No critical issues found"]
-            is_production_ready = True
-        
+        if "NO_CRITICAL_ISSUES" not in content:
+            for line in content.split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                if "critical" in line.lower() or "error" in line.lower():
+                    llm_issues.append(line)
+                else:
+                    suggestions.append(line)
+
+        critical_issues.extend(llm_issues)
+
+        is_production_ready = len(critical_issues) == 0
+
+        test_results = [
+            TestResult(
+                test_name="Syntax & Structure",
+                passed=len(critical_issues) == 0,
+                details="No syntax or structural errors detected"
+                if is_production_ready else "Critical issues detected"
+            ),
+            TestResult(
+                test_name="Runtime Safety",
+                passed=is_production_ready,
+                details="No guaranteed runtime crashes found"
+                if is_production_ready else "Potential runtime failures"
+            )
+        ]
+
+        if not critical_issues:
+            critical_issues = ["No critical issues found"]
+
         if not suggestions:
-            suggestions = ["Code appears functional", "Consider adding more comments", "Test with various inputs"]
-        
+            suggestions = ["Optional improvements may be applied if desired"]
+
+        overall_quality = (
+            "Production-ready code."
+            if is_production_ready
+            else "Critical issues must be resolved before production use."
+        )
+
         return TesterOutput(
-            overall_quality=overall_quality.strip(),
+            overall_quality=overall_quality,
             test_results=test_results,
-            issues_found=issues_found,
+            issues_found=critical_issues,
             suggestions=suggestions,
             is_production_ready=is_production_ready
         )

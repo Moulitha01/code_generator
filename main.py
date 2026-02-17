@@ -18,7 +18,6 @@ def main():
     try:
         description = input(
             "What do you want to build?\n"
-            "(e.g., 'Addition of two integers'): "
         ).strip()
 
         if not description:
@@ -42,12 +41,7 @@ def main():
             language=language
         )
 
-        # Ask user if they want to save the file
-        save = input("\n Save generated code to file? (y/n): ").lower().strip()
-        if save == "y":
-            orchestrator.save_code(results["code"])
 
-        print("\n Done!")
 
     except KeyboardInterrupt:
         print("\n\nInterrupted by user")
