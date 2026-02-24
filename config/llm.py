@@ -35,7 +35,6 @@ def get_gemini_llm(temperature: float = 0.7):
         temperature=temperature
     )
 
-
 def verify_api_key():
     """
     Verify that API key is configured.

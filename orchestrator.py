@@ -120,3 +120,25 @@ class CodeGenerationOrchestrator:
             "code": code_output.code,
             "tester": tester_text
         }
+
+# ---------------- FINAL SUMMARY ----------------
+        print(" FINAL SUMMARY")
+
+        summary_text = (
+            "PROJECT SUMMARY\n\n"
+            "PLANNING:\n" + planner_text + "\n\n"
+            "DESIGN:\n" + designer_text + "\n\n"
+            "CODE GENERATED SUCCESSFULLY.\n\n"
+            "TESTING RESULTS:\n" + tester_text
+        )
+
+        print(summary_text)
+
+        return {
+            "planner": planner_text,
+            "designer": designer_text,
+            "code": code_output.code,
+            "tester": tester_text,
+            "summary": summary_text,
+            "filename": code_output.filename
+        }

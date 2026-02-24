@@ -21,6 +21,7 @@
 <br><br>
 
 <button onclick="generateCode()">Generate Code</button>
+<button onclick="downloadReport()">Download Full Report</button>
 
 <hr>
 
@@ -30,11 +31,19 @@
 <h2>Design</h2>
 <pre id="design"></pre>
 
-<h2>Code</h2>
+<h2>
+    Code 
+    <span onclick="copyCode()" style="cursor:pointer; font-size:18px;">📋</span>
+</h2>
 <pre id="code"></pre>
+
+<button onclick="downloadCode()">Download Code File</button>
 
 <h2>Testing</h2>
 <pre id="testing"></pre>
+
+<h2>Final Summary</h2>
+<pre id="summary"></pre>
 
 <script src="/static/script.js"></script>
 
