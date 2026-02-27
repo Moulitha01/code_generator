@@ -9,7 +9,7 @@ import os
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config.llm import get_gemini_llm
+from config.llm import get_llm
 from agents.designer import DesignerOutput
 from agents.planner import PlannerOutput
 
@@ -27,7 +27,7 @@ class CodeGeneratorAgent:
     """
 
     def __init__(self):
-        self.llm = get_gemini_llm(
+        self.llm = get_llm(
             temperature=0.3,
             
         )

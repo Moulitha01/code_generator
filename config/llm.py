@@ -1,6 +1,6 @@
 # llm.py
 
-from langchain_community.chat_models import ChatOllama
+from langchain_ollama import ChatOllama
 
 def get_llm():
     """

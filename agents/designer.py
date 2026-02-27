@@ -10,7 +10,7 @@ import os
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config.llm import get_gemini_llm
+from config.llm import get_llm
 from agents.planner import PlannerOutput
 
 
@@ -30,7 +30,7 @@ class DesignerAgent:
 
     def __init__(self):
         # Lower temperature = stable, implementation-focused output
-        self.llm = get_gemini_llm(temperature=0.4)
+        self.llm = get_llm(temperature=0.4)
 
         self.prompt = ChatPromptTemplate.from_messages([
             (
