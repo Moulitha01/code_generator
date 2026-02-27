@@ -2,7 +2,7 @@
 
 from langchain_ollama import ChatOllama
 
-def get_llm():
+def get_llm(temperature=0.4):
     """
     Returns an Ollama LLM instance.
     Make sure Ollama is running on localhost:11434
