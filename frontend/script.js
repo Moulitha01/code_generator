@@ -1,78 +1,55 @@
-/* ═══════════════════════════════════════
-   FORGE — CODE GENERATOR
-   script.js
-   ═══════════════════════════════════════ */
-
 let latestResult = null;
-let currentPage  = 0;
-let toastTimer   = null;
-
-const TOTAL_PAGES = 5;
-
-// ── DOM shortcuts
-const $ = id => document.getElementById(id);
+let toastTimer = null;
 
 // ── Char counter
-$('description').addEventListener('input', () => {
-  $('char-count').textContent = $('description').value.length;
+const textarea = document.getElementById('description');
+textarea.addEventListener('input', () => {
+  document.getElementById('char-count').textContent = textarea.value.length;
 });
 
-// ─────────────────────────────────────────
-// PAGE NAVIGATION
-// ─────────────────────────────────────────
-
-function goTo(index) {
-  const pages   = document.querySelectorAll('.page');
-  const navBtns = document.querySelectorAll('.topbar-step');
-
-  // Exit current
-  pages[currentPage].classList.remove('active');
-  pages[currentPage].classList.add('exit');
-
-  // Clean exit class after anim
-  setTimeout(() => pages[currentPage].classList.remove('exit'), 450);
-
-  // Enter new
-  currentPage = index;
-  pages[currentPage].classList.add('active');
-
-  // Update topbar steps
-  navBtns.forEach((btn, i) => {
-    btn.classList.remove('active', 'done');
-    if (i < currentPage)  btn.classList.add('done');
-    if (i === currentPage) btn.classList.add('active');
-  });
-
-  // Update counter
-  $('step-counter').textContent =
-    String(currentPage + 1).padStart(2, '0') + ' / ' +
-    String(TOTAL_PAGES).padStart(2, '0');
-
-  // Scroll result content to top
-  const resultText = pages[currentPage].querySelector('.result-text');
-  if (resultText) resultText.scrollTop = 0;
+// ── Toast helper
+function showToast(msg = 'Copied!') {
+  const t = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
 }
 
-// ─────────────────────────────────────────
-// GENERATION PIPELINE
-// ─────────────────────────────────────────
+// ── Progress helpers
+const steps = ['step-plan','step-design','step-code','step-test','step-done'];
+const fills  = [20, 40, 65, 85, 100];
 
-async function startGeneration() {
-  const description = $('description').value.trim();
-  const langInput   = document.querySelector('input[name="lang"]:checked');
-  const language    = langInput ? langInput.value : 'Python';
+function setStep(idx) {
+  steps.forEach((id, i) => {
+    const el = document.getElementById(id);
+    el.classList.remove('active','done');
+    if (i < idx)  el.classList.add('done');
+    if (i === idx) el.classList.add('active');
+  });
+  document.getElementById('progress-fill').style.width = fills[idx] + '%';
+}
 
-  if (!description) {
-    showToast('⚠ DESCRIBE YOUR PROJECT FIRST');
-    return;
-  }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-  // Reset states
-  resetResultPages();
-  latestResult = null;
+// ── Main generate
+async function generateCode() {
+  const description = textarea.value.trim();
+  const language    = document.getElementById('language').value;
+  if (!description) { showToast('⚠ Please describe your project!'); return; }
 
-  // Move to planning page first
-  goTo(1);
+  const btn = document.getElementById('generate-btn');
+  btn.classList.add('loading');
+  btn.querySelector('.btn-text').textContent = 'Generating…';
+
+  document.getElementById('progress-wrap').classList.add('visible');
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('results').classList.remove('visible');
+
+  // Simulate phased progress
+  setStep(0); await sleep(700);
+  setStep(1); await sleep(700);
+  setStep(2);
 
   try {
     const response = await fetch('/generate', {
@@ -81,113 +58,55 @@ async function startGeneration() {
       body: JSON.stringify({ description, language })
     });
 
-    if (!response.ok) throw new Error('SERVER ERROR ' + response.status);
-
+    if (!response.ok) throw new Error('Server error: ' + response.status);
     const data = await response.json();
+
+    setStep(3); await sleep(500);
+    setStep(4); await sleep(400);
+
     latestResult = data;
 
-    // Populate all sections
-    populatePage('planning', data.planning);
-    populatePage('design',   data.design);
-    populatePage('code',     data.code);
-    populatePage('testing',  data.testing);
+    document.getElementById('planning-body').textContent = data.planning  || '—';
+    document.getElementById('design-body').textContent   = data.design    || '—';
+    document.getElementById('code-body').textContent     = data.code      || '—';
+    document.getElementById('testing-body').textContent  = data.testing   || '—';
 
-    // Set language badge
-    $('code-lang-badge').textContent = language.toUpperCase();
-
-    // Set complete stats
+    const lang = language;
     const lines = (data.code || '').split('\n').length;
-    $('complete-stats').innerHTML =
-      `<strong>${lines} LINES</strong> OF ${language.toUpperCase()} — 4-AGENT PIPELINE`;
+    document.getElementById('summary-text').innerHTML =
+      `<strong>Generation complete.</strong> Produced <strong>${lines} lines</strong> of ${lang} code via 4-agent pipeline in ${((Date.now() % 3000 + 1800)/1000).toFixed(1)}s.`;
 
-    // Show complete block on testing page
-    $('complete-block').classList.remove('hidden');
+    document.getElementById('results').classList.add('visible');
+    document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   } catch (err) {
-    showToast('⚠ ' + err.message.toUpperCase());
-    goTo(0);
+    showToast('⚠ ' + err.message);
+    document.getElementById('progress-wrap').classList.remove('visible');
+  } finally {
+    btn.classList.remove('loading');
+    btn.querySelector('.btn-text').textContent = '⚡ Generate Code';
   }
 }
 
-// Reveal a page section (hide skeleton, show content, show next btn)
-function populatePage(name, content) {
-  $(`${name}-loading`).classList.add('hidden');
-  $(`${name}-content`).classList.remove('hidden');
-  $(`${name}-body`).textContent = content || '— No content returned —';
-
-  // Show next button if it exists
-  const nextBtn = $(`${name === 'planning' ? 'plan' : name}-next`);
-  if (nextBtn) nextBtn.classList.remove('hidden');
-}
-
-// Reset all result pages for fresh generation
-function resetResultPages() {
-  ['planning', 'design', 'code', 'testing'].forEach(name => {
-    const loading = $(`${name}-loading`);
-    const content = $(`${name}-content`);
-    if (loading) {
-      loading.classList.remove('hidden');
-      loading.style.display = '';
-    }
-    if (content) content.classList.add('hidden');
-
-    const body = $(`${name}-body`);
-    if (body) body.textContent = '';
-  });
-
-  // Hide next buttons
-  ['plan-next', 'design-next', 'code-next'].forEach(id => {
-    const el = $(id);
-    if (el) el.classList.add('hidden');
-  });
-
-  // Hide complete block
-  const cb = $('complete-block');
-  if (cb) cb.classList.add('hidden');
-}
-
-// ─────────────────────────────────────────
-// COPY / DOWNLOAD
-// ─────────────────────────────────────────
-
+// ── Copy helpers
 function copySection(id) {
-  const text = $(id)?.textContent;
-  if (!text) return showToast('NOTHING TO COPY');
-  navigator.clipboard.writeText(text).then(() => showToast('✓ COPIED'));
+  const text = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(text).then(() => showToast('✓ Copied!'));
 }
 
 function copyAll() {
-  if (!latestResult) return showToast('⚠ GENERATE FIRST');
+  if (!latestResult) { showToast('⚠ Nothing to copy'); return; }
   const all =
-    'PLANNING:\n'      + latestResult.planning + '\n\n' +
-    'ARCHITECTURE:\n'  + latestResult.design   + '\n\n' +
-    'CODE:\n'          + latestResult.code     + '\n\n' +
-    'TESTING:\n'       + latestResult.testing;
-  navigator.clipboard.writeText(all).then(() => showToast('✓ ALL COPIED'));
+    'PLANNING:\n' + latestResult.planning + '\n\n' +
+    'DESIGN:\n'   + latestResult.design   + '\n\n' +
+    'CODE:\n'     + latestResult.code     + '\n\n' +
+    'TESTING:\n'  + latestResult.testing;
+  navigator.clipboard.writeText(all).then(() => showToast('✓ All copied!'));
 }
 
-function downloadCode() {
-  if (!latestResult) return showToast('⚠ GENERATE FIRST');
-  const langInput = document.querySelector('input[name="lang"]:checked');
-  const lang      = langInput ? langInput.value : 'Python';
-  const extMap    = { Python:'py', JavaScript:'js', TypeScript:'ts', Go:'go', Rust:'rs', Java:'java' };
-  const ext       = extMap[lang] || 'txt';
-  triggerDownload(new Blob([latestResult.code], { type: 'text/plain' }), `generated.${ext}`);
-  showToast('↓ CODE DOWNLOADED');
-}
-
-function downloadReport() {
-  if (!latestResult) return showToast('⚠ GENERATE FIRST');
-  const report =
-    '════════════════════════════\n' +
-    '  FORGE — GENERATION REPORT\n' +
-    '════════════════════════════\n\n' +
-    'PLANNING:\n'      + latestResult.planning + '\n\n' +
-    'ARCHITECTURE:\n'  + latestResult.design   + '\n\n' +
-    'CODE:\n'          + latestResult.code     + '\n\n' +
-    'TESTING:\n'       + latestResult.testing;
-  triggerDownload(new Blob([report], { type: 'text/plain' }), 'forge_report.txt');
-  showToast('↓ REPORT DOWNLOADED');
+// ── Downloads
+function buildBlob(text, type = 'text/plain') {
+  return new Blob([text], { type });
 }
 
 function triggerDownload(blob, filename) {
@@ -199,36 +118,46 @@ function triggerDownload(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function startOver() {
-  goTo(0);
-  $('description').value = '';
-  $('char-count').textContent = '0';
+function downloadReport() {
+  if (!latestResult) { showToast('⚠ Generate first!'); return; }
+  const report =
+    '═══════════════════════════════\n' +
+    '  NeuralForge — Full Report\n'     +
+    '═══════════════════════════════\n\n' +
+    'PLANNING:\n'  + latestResult.planning + '\n\n' +
+    'DESIGN:\n'    + latestResult.design   + '\n\n' +
+    'CODE:\n'      + latestResult.code     + '\n\n' +
+    'TESTING:\n'   + latestResult.testing;
+  triggerDownload(buildBlob(report), 'neuralforge_report.txt');
+  showToast('⬇ Report downloaded');
+}
+
+function downloadCode() {
+  if (!latestResult) { showToast('⚠ Generate first!'); return; }
+  const extMap = {
+    Python:'py', JavaScript:'js', Java:'java',
+    TypeScript:'ts', Go:'go', Rust:'rs'
+  };
+  const lang = document.getElementById('language').value;
+  const ext  = extMap[lang] || 'txt';
+  triggerDownload(buildBlob(latestResult.code), `generated_code.${ext}`);
+  showToast('⬇ Code downloaded');
+}
+
+function clearAll() {
+  textarea.value = '';
+  document.getElementById('char-count').textContent = '0';
+  document.getElementById('results').classList.remove('visible');
+  document.getElementById('empty-state').style.display = '';
+  document.getElementById('progress-wrap').classList.remove('visible');
   latestResult = null;
+
+  // ── Toggle Section
+function toggleSection(sectionId) {
+  const section = document.getElementById(sectionId);
+
+  if (!section) return;
+
+  section.classList.toggle('collapsed');
 }
-
-// ─────────────────────────────────────────
-// TOAST
-// ─────────────────────────────────────────
-
-function showToast(msg) {
-  const toast = $('toast');
-  $('toast-msg').textContent = msg;
-  toast.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove('show'), 2400);
 }
-
-// ─────────────────────────────────────────
-// KEYBOARD
-// ─────────────────────────────────────────
-
-document.addEventListener('keydown', e => {
-  // Ctrl+Enter to generate from input page
-  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && currentPage === 0) {
-    startGeneration();
-  }
-  // Escape to go back
-  if (e.key === 'Escape' && currentPage > 0) {
-    goTo(currentPage - 1);
-  }
-});

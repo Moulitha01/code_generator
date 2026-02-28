@@ -3,201 +3,149 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>FORGE — Code Generator</title>
-  <link rel="stylesheet" href="style.css"/>
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <title>NeuralForge — AI Code Generator</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
+
 <body>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
 
-  <!-- NOISE OVERLAY -->
-  <div class="noise"></div>
+  <div class="wrapper">
 
-  <!-- TOP BAR -->
-  <nav class="topbar">
-    <span class="topbar-logo">FORGE</span>
-    <div class="topbar-steps">
-      <span class="topbar-step" data-step="0">INPUT</span>
-      <span class="topbar-divider">—</span>
-      <span class="topbar-step" data-step="1">PLAN</span>
-      <span class="topbar-divider">—</span>
-      <span class="topbar-step" data-step="2">ARCH</span>
-      <span class="topbar-divider">—</span>
-      <span class="topbar-step" data-step="3">CODE</span>
-      <span class="topbar-divider">—</span>
-      <span class="topbar-step" data-step="4">TEST</span>
+    <!-- HEADER -->
+    <header>
+      <div class="logo-badge">NeuralForge v2.0</div>
+      <h1>Multi-Agent<br>Code Generator</h1>
+      <p class="subtitle">// Plan → Design → Build → Test → Ship</p>
+    </header>
+
+    <!-- INPUT CARD -->
+    <div class="card">
+      <div class="card-label">01 — Describe your project</div>
+      <textarea id="description" placeholder="e.g. A REST API for a task management app with user auth, CRUD operations, and JWT tokens..." rows="5"></textarea>
+      <div class="char-counter"><span id="char-count">0</span> characters</div>
+
+      <div class="controls-row">
+        <select id="language">
+          <option value="Python">🐍 Python</option>
+          <option value="JavaScript">⚡ JavaScript</option>
+          <option value="Java">☕ Java</option>
+          <option value="TypeScript">🔷 TypeScript</option>
+          <option value="Go">🐹 Go</option>
+          <option value="Rust">🦀 Rust</option>
+        </select>
+
+        <button class="btn btn-primary" id="generate-btn" onclick="generateCode()">
+          <div class="spinner"></div>
+          <span class="btn-text">⚡ Generate Code</span>
+        </button>
+
+        <button class="btn btn-ghost" onclick="clearAll()">✕ Clear</button>
+      </div>
+
+      <!-- PROGRESS -->
+      <div class="progress-wrap" id="progress-wrap">
+        <div class="progress-steps">
+          <div class="step-chip" id="step-plan">PLANNING</div>
+          <div class="step-chip" id="step-design">DESIGN</div>
+          <div class="step-chip" id="step-code">CODING</div>
+          <div class="step-chip" id="step-test">TESTING</div>
+          <div class="step-chip" id="step-done">COMPLETE</div>
+        </div>
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill" id="progress-fill"></div>
+        </div>
+      </div>
     </div>
-    <span class="topbar-index" id="step-counter">01 / 05</span>
-  </nav>
 
-  <!-- MAIN STAGE -->
-  <main class="stage">
+    <!-- RESULTS -->
+    <div id="results">
 
-    <!-- ████ PAGE 0 — INPUT ████ -->
-    <section class="page active" id="page-0">
-      <div class="page-inner">
-        <div class="big-label">
-          <span class="tag-line">// MULTI-AGENT PIPELINE</span>
-          <h1 class="hero-title">DESCRIBE<br><em>YOUR</em><br>PROJECT.</h1>
-        </div>
-        <div class="input-zone">
-          <div class="field-row">
-            <label class="field-label">WHAT ARE YOU BUILDING?</label>
-            <textarea id="description" placeholder="A REST API for a task management app with JWT auth, CRUD operations, PostgreSQL, and rate limiting..." rows="6"></textarea>
-            <div class="char-bar"><span id="char-count">0</span> CHARS</div>
-          </div>
-          <div class="field-row lang-row">
-            <label class="field-label">LANGUAGE</label>
-            <div class="lang-options">
-              <label class="lang-chip"><input type="radio" name="lang" value="Python" checked/><span>PY</span></label>
-              <label class="lang-chip"><input type="radio" name="lang" value="JavaScript"/><span>JS</span></label>
-              <label class="lang-chip"><input type="radio" name="lang" value="TypeScript"/><span>TS</span></label>
-              <label class="lang-chip"><input type="radio" name="lang" value="Go"/><span>GO</span></label>
-              <label class="lang-chip"><input type="radio" name="lang" value="Rust"/><span>RS</span></label>
-              <label class="lang-chip"><input type="radio" name="lang" value="Java"/><span>JV</span></label>
+      <div class="result-grid">
+
+        <div class="result-card">
+          <div class="result-header">
+            <div class="result-title">
+              <span class="result-dot dot-blue"></span>
+              Planning
+            </div>
+            <div class="result-actions">
+              <button class="btn-icon" onclick="copySection('planning-body')" title="Copy">⎘</button>
             </div>
           </div>
-          <button class="cta-btn" id="start-btn" onclick="startGeneration()">
-            <span class="cta-text">START PIPELINE</span>
-            <span class="cta-arrow">→</span>
-          </button>
+          <div class="result-body" id="planning-body"></div>
         </div>
-      </div>
-      <div class="page-deco">
-        <div class="deco-num">01</div>
-      </div>
-    </section>
 
-    <!-- ████ PAGE 1 — PLANNING ████ -->
-    <section class="page" id="page-1">
-      <div class="page-inner">
-        <div class="result-header-block">
-          <span class="phase-tag">PHASE 01</span>
-          <h2 class="phase-title">PLANNING</h2>
-          <p class="phase-sub">Breaking down your project into actionable components.</p>
-        </div>
-        <div class="result-zone" id="planning-loading">
-          <div class="skeleton-lines">
-            <div class="skel"></div><div class="skel short"></div>
-            <div class="skel"></div><div class="skel shorter"></div>
-            <div class="skel"></div><div class="skel"></div>
-          </div>
-          <p class="loading-label">AGENT IS THINKING<span class="blink-dots">...</span></p>
-        </div>
-        <div class="result-content hidden" id="planning-content">
-          <pre class="result-text" id="planning-body"></pre>
-        </div>
-      </div>
-      <div class="page-nav">
-        <button class="nav-btn prev" onclick="goTo(0)">← BACK</button>
-        <button class="nav-btn next hidden" id="plan-next" onclick="goTo(2)">NEXT PHASE →</button>
-      </div>
-      <div class="page-deco"><div class="deco-num">02</div></div>
-    </section>
-
-    <!-- ████ PAGE 2 — ARCHITure ████ -->
-    <section class="page" id="page-2">
-      <div class="page-inner">
-        <div class="result-header-block">
-          <span class="phase-tag">PHASE 02</span>
-          <h2 class="phase-title">ARCHITECTURE</h2>
-          <p class="phase-sub">System design, data flow, and structural decisions.</p>
-        </div>
-        <div class="result-zone" id="design-loading">
-          <div class="skeleton-lines">
-            <div class="skel"></div><div class="skel short"></div>
-            <div class="skel"></div><div class="skel shorter"></div>
-            <div class="skel"></div><div class="skel"></div>
-          </div>
-          <p class="loading-label">ARCHITECT AGENT<span class="blink-dots">...</span></p>
-        </div>
-        <div class="result-content hidden" id="design-content">
-          <pre class="result-text" id="design-body"></pre>
-        </div>
-      </div>
-      <div class="page-nav">
-        <button class="nav-btn prev" onclick="goTo(1)">← BACK</button>
-        <button class="nav-btn next hidden" id="design-next" onclick="goTo(3)">NEXT PHASE →</button>
-      </div>
-      <div class="page-deco"><div class="deco-num">03</div></div>
-    </section>
-
-    <!-- ████ PAGE 3 — CODE ████ -->
-    <section class="page" id="page-3">
-      <div class="page-inner">
-        <div class="result-header-block">
-          <span class="phase-tag">PHASE 03</span>
-          <h2 class="phase-title">CODE</h2>
-          <p class="phase-sub">Implementation generated by the builder agent.</p>
-        </div>
-        <div class="result-zone" id="code-loading">
-          <div class="skeleton-lines">
-            <div class="skel"></div><div class="skel short"></div>
-            <div class="skel"></div><div class="skel shorter"></div>
-            <div class="skel"></div><div class="skel"></div>
-          </div>
-          <p class="loading-label">BUILDER AGENT<span class="blink-dots">...</span></p>
-        </div>
-        <div class="result-content hidden" id="code-content">
-          <div class="code-toolbar">
-            <span id="code-lang-badge">PYTHON</span>
-            <div class="code-actions">
-              <button class="icon-btn" onclick="copySection('code-body')" title="Copy">⎘ COPY</button>
-              <button class="icon-btn" onclick="downloadCode()" title="Download">↓ DOWNLOAD</button>
+        <div class="result-card">
+          <div class="result-header">
+            <div class="result-title">
+              <span class="result-dot dot-purple"></span>
+              Architecture
+            </div>
+            <div class="result-actions">
+              <button class="btn-icon" onclick="copySection('design-body')" title="Copy">⎘</button>
             </div>
           </div>
-          <pre class="result-text code-text" id="code-body"></pre>
+          <div class="result-body" id="design-body"></div>
         </div>
-      </div>
-      <div class="page-nav">
-        <button class="nav-btn prev" onclick="goTo(2)">← BACK</button>
-        <button class="nav-btn next hidden" id="code-next" onclick="goTo(4)">NEXT PHASE →</button>
-      </div>
-      <div class="page-deco"><div class="deco-num">04</div></div>
-    </section>
 
-    <!-- ████ PAGE 4 — TESTING ████ -->
-    <section class="page" id="page-4">
-      <div class="page-inner">
-        <div class="result-header-block">
-          <span class="phase-tag">PHASE 04</span>
-          <h2 class="phase-title">TESTING</h2>
-          <p class="phase-sub">Test suite generated by the QA agent.</p>
-        </div>
-        <div class="result-zone" id="testing-loading">
-          <div class="skeleton-lines">
-            <div class="skel"></div><div class="skel short"></div>
-            <div class="skel"></div><div class="skel shorter"></div>
-            <div class="skel"></div><div class="skel"></div>
+        <div class="result-card full" id="code-block">
+          <div class="result-header">
+            <div class="result-title">
+              <span class="result-dot dot-cyan"></span>
+              Generated Code
+            </div>
+            <div class="result-actions">
+              <button class="btn-icon" onclick="copySection('code-body')" title="Copy code">⎘</button>
+              <button class="btn-icon" onclick="downloadCode()" title="Download">⬇</button>
+            </div>
           </div>
-          <p class="loading-label">QA AGENT<span class="blink-dots">...</span></p>
+          <div class="result-body" id="code-body"></div>
         </div>
-        <div class="result-content hidden" id="testing-content">
-          <pre class="result-text" id="testing-body"></pre>
+
+        <div class="result-card full">
+          <div class="result-header">
+            <div class="result-title">
+              <span class="result-dot dot-green"></span>
+              Test Suite
+            </div>
+            <div class="result-actions">
+              <button class="btn-icon" onclick="copySection('testing-body')" title="Copy">⎘</button>
+            </div>
+          </div>
+          <div class="result-body" id="testing-body"></div>
         </div>
-        <!-- COMPLETE BLOCK -->
-        <div class="complete-block hidden" id="complete-block">
-          <div class="complete-inner">
-            <div class="complete-mark">✓</div>
-            <p class="complete-msg">PIPELINE COMPLETE — <span id="complete-stats"></span></p>
-          </div>
-          <div class="complete-actions">
-            <button class="cta-btn small" onclick="downloadReport()">↓ FULL REPORT</button>
-            <button class="cta-btn small ghost" onclick="copyAll()">⎘ COPY ALL</button>
-            <button class="cta-btn small ghost" onclick="startOver()">↺ START OVER</button>
-          </div>
+
+      </div>
+
+      <div class="summary-banner">
+        <div class="summary-icon">✦</div>
+        <div class="summary-text" id="summary-text">
+          <strong>Generation complete.</strong> Your multi-agent pipeline ran successfully.
         </div>
       </div>
-      <div class="page-nav">
-        <button class="nav-btn prev" onclick="goTo(3)">← BACK</button>
+
+      <div class="action-bar">
+        <button class="btn btn-primary" onclick="downloadReport()">⬇ Full Report</button>
+        <button class="btn btn-ghost" onclick="downloadCode()">⬇ Code Only</button>
+        <button class="btn btn-ghost" onclick="copyAll()">⎘ Copy All</button>
       </div>
-      <div class="page-deco"><div class="deco-num">05</div></div>
-    </section>
 
-  </main>
+    </div>
 
-  <!-- TOAST -->
-  <div class="toast" id="toast"><span id="toast-msg"></span></div>
+    <div id="empty-state" class="empty-state">
+      <div class="big-icon">◈</div>
+      Your generated code will appear here.<br>Describe your project above and hit Generate.
+    </div>
 
-  <script src="script.js"></script>
+  </div>
+
+  <div class="toast" id="toast">✓ <span id="toast-msg">Copied!</span></div>
+
+  <script src="/static/script.js"></script>
 </body>
 </html>
