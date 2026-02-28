@@ -152,12 +152,5 @@ function clearAll() {
   document.getElementById('progress-wrap').classList.remove('visible');
   latestResult = null;
 
-  // ── Toggle Section
-function toggleSection(sectionId) {
-  const section = document.getElementById(sectionId);
 
-  if (!section) return;
-
-  section.classList.toggle('collapsed');
-}
 }

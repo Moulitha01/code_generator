@@ -295,14 +295,10 @@ select:focus { border-color: rgba(59,130,246,0.4); }
 #results.visible { display: block; animation: fadeUp 0.5s ease both; }
 
 .result-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
-@media (max-width: 640px) {
-  .result-grid { grid-template-columns: 1fr; }
-}
-
 .result-card {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -340,20 +336,16 @@ select:focus { border-color: rgba(59,130,246,0.4); }
 .result-actions { display: flex; gap: 6px; }
 
 .result-body {
-  padding: 18px;
+  padding: 20px;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.78rem;
+  font-size: 0.85rem;
   font-weight: 300;
-  line-height: 1.75;
+  line-height: 1.8;
   color: #94a3b8;
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 280px;
-  overflow-y: auto;
 }
-.result-body::-webkit-scrollbar { width: 4px; }
-.result-body::-webkit-scrollbar-track { background: transparent; }
-.result-body::-webkit-scrollbar-thumb { background: rgba(99,179,237,0.2); border-radius: 99px; }
+
 
 #code-block .result-body {
   background: var(--code-bg);
