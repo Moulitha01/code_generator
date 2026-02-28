@@ -31,3 +31,6 @@ app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 @app.get("/")
 def serve_home():
     return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app:app", host="0.0.0.0", port=8000)
