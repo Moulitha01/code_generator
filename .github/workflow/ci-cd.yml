@@ -1,0 +1,78 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Lint (non-blocking for now)
+        run: pip install ruff && ruff check . || true
+
+      - name: Import sanity check
+        env:
+          # Dummy value so app.py doesn't crash on import during CI.
+          # Real key lives in Render's dashboard, not here.
+          GROQ_API_KEY: "dummy_key_for_ci"
+        run: python -c "import app"
+
+      # Once you have real tests, replace the step above with:
+      # - name: Run tests
+      #   run: pytest -q
+
+  responsive-screenshots:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Playwright
+        run: |
+          npm install playwright
+          npx playwright install --with-deps chromium
+
+      - name: Serve frontend
+        run: |
+          npx serve frontend -l 5000 &
+          sleep 3
+
+      - name: Take responsive screenshots
+        env:
+          SCREENSHOT_URL: "http://localhost:5000"
+        run: node scripts/responsive-screenshot.js
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: responsive-screenshots
+          path: screenshots/
+
+  deploy:
+    needs: build-and-check
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy
+        run: |
+          curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"

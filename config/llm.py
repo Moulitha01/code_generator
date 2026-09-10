@@ -3,7 +3,7 @@ from langchain_groq import ChatGroq
 from config.groq_key_manager import groq_key_manager
 
 
-MODEL_NAME = "qwen-2.5-coder-32b"
+MODEL_NAME = "openai/gpt-oss-120b"
 
 
 def get_llm(temperature=0.4):
